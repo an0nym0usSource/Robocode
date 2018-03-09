@@ -12,87 +12,59 @@ import java.awt.Color;
 
 
 public class MyFirstRobot extends AdvancedRobot {
-	double gunTurnAngle = 0;
-	double enemyRobotDistance;
-	int currentNumberOfPlayers = 0;
-	int burstCont = 0;
-	int getHitCont = 0;
+	private double enemyRobotDistance;
+	private int currentNumberOfPlayers = 0;
+	private int burstCont = 0;
+	private int hitCont = 0;
+	private int bulletMissedCont = 0;
 	
+		// First function called by the robot
 		public void run() {
-			setColors(Color.green.darker(), Color.black, Color.gray); // body, gun, radar
+			setBodyColor(Color.green.darker());
+			setGunColor(Color.black);
+			setRadarColor(Color.gray);
 			setBulletColor(Color.orange);
 			setScanColor(Color.white);
+			// Set the Radar to be independent of the Gun rotation
 			setAdjustRadarForGunTurn(true);
-			while (true) { 	// Robot main loop
+			
+			// Robot main loop
+			while (true) {
 				currentNumberOfPlayers = getOthers();
-				System.out.println("current number of players: " + currentNumberOfPlayers);
-				if(currentNumberOfPlayers >= 5){
-					setTurnRight(500);
-					setMaxVelocity(5);
-					ahead(500);
-					setTurnRadarRight(Double.POSITIVE_INFINITY);
-				}
-				else{
-					setTurnRadarRight(Double.POSITIVE_INFINITY);
-					/*if(getHitCont > 3){
-						setTurnRight(300);
-						setMaxVelocity(5);
-						ahead(300);
-						getHitCont = 0;
-					}*/
-				}
+				setTurnRadarRight(Double.POSITIVE_INFINITY);
 				execute();
 			} 
 		} 
 		
-		// fire burst of 2 if distance > 200 and 3 if > 50
-		// walls
-		// spin
 		public void onScannedRobot(ScannedRobotEvent e){
-			//System.out.println("lock");
-			//if(currentNumberOfPlayers >= 5 && e.getEnergy() < 20){
-			//	fire(whatBulletToFire(e));
-			//}
-			//if(e.getEnergy() < 15){
-				System.out.println("lock");
-				double angleToEnemy = getHeadingRadians() + e.getBearingRadians();
-				double radarTurn = angleToEnemy - getRadarHeadingRadians();
-				setTurnRadarRightRadians(radarTurn);
-				
-				gunTurnAngle = getGunHeading() - getRadarHeading();
-				//System.out.println("gunTurnAngle: " + gunTurnAngle);
-				//if(gunTurnAngle > 0) setTurnGunRight(gunTurnAngle);
-				setTurnGunLeft(gunTurnAngle);
-				//ahead(e.getDistance()/3);
-				//fire(whatBulletToFire(e));
-				if(burstCont < 2){
-					fire(whatBulletToFire(e));
-					burstCont++;
+			if(currentNumberOfPlayers == 1){
+				lockTarget(e); // to shoot + 5º
+				if(bulletMissedCont >= 3){ 
+					bulletMissedCont = 0;
+					ahead(e.getDistance()/2);
 				}
-				else if(burstCont < 8){
-					burstCont++;
+				else if(hitCont > 3){
+					hitCont = 0;
+					movePerpendicularToEnemy(e);
 				}
-				else burstCont = 0;
-				if(getHitCont > 3){
-					getHitCont = 0;
-					System.out.println("get hit cont: " + getHitCont);
-					turnLeft(90 - e.getBearing());
-					ahead(100);
-					back(100);
+				else{ 
+					// lockTarget2 to shoot -10º
+					fireFunction(e);
 				}
-				
 				scan();
-				//System.out.println("gunTurnAngle: " + gunTurnAngle);
-				//System.out.println("Radar bearing: " + getRadarHeading());
-				//System.out.println("Heading: " +  getGunHeading()); 
-			//}
-		}
-		
-		private int whatBulletToFire(ScannedRobotEvent e){
-			enemyRobotDistance = e.getDistance();
-			if (enemyRobotDistance > 200 || getEnergy() < 15) return 1;
-			else if (enemyRobotDistance > 50) return 2;
-			else return 3;
+			}
+			//else if(currentNumberOfPlayers > 1 && currentNumberOfPlayers < 7){}
+			else{
+				if(e.getEnergy() < 10){
+					lockTarget(e);
+					if(bulletMissedCont >= 4){
+						bulletMissedCont = 0;
+						spinMove();
+					}
+					else fireFunction(e);
+				}
+				else spinMove();
+			}
 		}
 		
 		public void onWin(WinEvent e){
@@ -105,10 +77,52 @@ public class MyFirstRobot extends AdvancedRobot {
 		}
 		
 		public void onHitByBullet(HitByBulletEvent e){
-			getHitCont++;
+			hitCont++;
 		}
 		
-		public void onHitWall(HitWallEvent e){
-			setBack(100);
+		public void onBulletMissed(){
+			bulletMissedCont++;
+		}
+		
+		//public void onHitWall(HitWallEvent e){}
+		
+		// battlefield size
+		
+		private void movePerpendicularToEnemy(ScannedRobotEvent e){
+			turnLeft(90 - e.getBearing());
+			ahead(100);
+			back(100);
+		}
+		
+		private void spinMove(){
+			setTurnRight(300);
+			setMaxVelocity(5);
+			ahead(300);
+		}
+		
+		private void fireFunction(ScannedRobotEvent e){
+			if(burstCont < 2){
+				fire(whatBulletToFire(e));
+				burstCont++;
+			}
+			else if(burstCont < 8){
+				burstCont++;
+			}
+			else burstCont = 0;
+		}
+		
+		private int whatBulletToFire(ScannedRobotEvent e){
+			enemyRobotDistance = e.getDistance();
+			if (enemyRobotDistance > 200 || getEnergy() < 15) return 1;
+			else if (enemyRobotDistance > 50) return 2;
+			else return 3;
+		}
+		
+		private void lockTarget(ScannedRobotEvent e){
+			double angleToEnemy = getHeadingRadians() + e.getBearingRadians();
+			double angleRadarNeedsTurn = angleToEnemy - getRadarHeadingRadians();
+			setTurnRadarRightRadians(angleRadarNeedsTurn);
+			//double angleGunNeedsTurn = getGunHeading() - getRadarHeading();
+			setTurnGunLeft(angleGunNeedsTurn);
 		}
 }
